@@ -81,7 +81,7 @@ export const jawgAPI = {
      }
      const mappedResponses = _.map(allResp, resp => {
        return _.map(resp.data, (pt) => {
-         const { elevation } = pt;
+          const  elevation  = (pt.elevation * FEET_PER_METER);
          const latitude = pt.location.lat;
          const longitude = pt.location.lng;
          return { elevation, latitude, longitude };
