@@ -1,5 +1,6 @@
 import _ from 'lodash';
 import axios from 'axios';
+import Promise from 'bluebird';
 
 const JAWG_ACCESS_TOKEN = 's7iSO998IpSBA2Ktgs541UXt2WcXt30qIHBRDzd2aQWOGLCFEJszM5tU6fHBtjYJ'
 const CORS_PROXY = 'https://cors-anywhere.herokuapp.com/'
@@ -59,33 +60,34 @@ export const jawgAPI = {
     // return: [{lat, lon, elevation}, {lat, lon, elevation}, ...]
     // split up coordinates into chunks so the URI isn't too long
     const coordsChunks = _.chunk(coordsArray, 100);
-    const promises = _.map(coordsChunks, (coords, index) => {
-      // Set the delays so that promises get resolved 2 seconds apart
-      return delay(index * 2000).then(() => {
-          return axios.get(`${CORS_PROXY}https://api.jawg.io/elevations`, {
-                  params: {
-                    'access-token': JAWG_ACCESS_TOKEN,
-                    locations: coords.join('|'),
-                  },
-                })
-      })
-    });
-    return axios.all(promises).then((allResp) => {
-      // make array of {lat, lon, elevation} objects from
-      // promise responses if they all succeed
-      if (_.reduce(allResp, (failedRequest, resp) => failedRequest || resp.status !== 200, false)) {
-        console.log("At least one request failed. Problem! ");
-        return [];
-      }
-      const mappedResponses = _.map(allResp, resp => {
-        return _.map(resp.data, (pt) => {
+    const jawgUri = process.env.NODE_ENV === 'production' ? 'https://api.jawg.io/elevations' : `${CORS_PROXY}https://api.jawg.io/elevations`;
+
+    return Promise.map(coordsChunks, coords => {
+     return delay(5000,
+       axios.get(jawgUri, {
+         params: {
+           'access-token': JAWG_ACCESS_TOKEN,
+           locations: coords.join('|'),
+         },
+       })
+     )
+   }, {concurrency: 1})
+   .then((allResp) => {
+     // make array of {lat, lon, elevation} objects from
+     // promise responses if they all succeed
+     if (_.reduce(allResp, (failedRequest, resp) => failedRequest || resp.status !== 200, false)) {
+       console.log("At least one request failed. Problem! ");
+       return [];
+     }
+     const mappedResponses = _.map(allResp, resp => {
+       return _.map(resp.data, (pt) => {
           const  elevation  = (pt.elevation * FEET_PER_METER);
-          const latitude = pt.location.lat;
-          const longitude = pt.location.lng;
-          return { elevation, latitude, longitude };
-        });
-      });
-      return _.flatten(mappedResponses);
-    });
+         const latitude = pt.location.lat;
+         const longitude = pt.location.lng;
+         return { elevation, latitude, longitude };
+       });
+     })
+     return _.flatten(mappedResponses);
+   });
   }
 }
