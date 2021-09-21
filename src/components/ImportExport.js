@@ -321,17 +321,22 @@ class ImportExport extends React.Component {
       const trail = trails.get(trailId);
       let trailName = trail.get('name').split(' ').join('_');
 
-      if (trail.get('features')[0]) {
-        trailName = trail.get('features')[0].get('originalTrailName') ? trail.get('features')[0].get('originalTrailName') : trailName;
+      trail.get('features').forEach((feature) => {
+        trailName = feature.get('originalTrailName') ? feature.get('originalTrailName') : trailName;
         // Build GeoJSON for trials - convert to Lat Lon
         // we need to clone it first so that we don't modify the original feature
-        let trailCoords = trail.get('features')[0].clone();
-        trailCoords = trailCoords.getGeometry().transform('EPSG:3857', 'EPSG:4326');
+        let featureCoords = feature.clone();
+        featureCoords = featureCoords.getGeometry().transform('EPSG:3857', 'EPSG:4326');
         // console.log(trailCoords);
-        trailGeo[trailName] = trailCoords.getCoordinates();
+        if (trailGeo[trailName]) {
+          trailGeo[trailName].push(featureCoords.getCoordinates()[0]);
+        } else {
+          trailGeo[trailName] = featureCoords.getCoordinates();
+        }
+        // trailGeo[trailName].push(featureCoords.getCoordinates());
         // End Build GeoJSON for Trails
         trailsRows.push([trailName, trailGeo[trailName]]);
-      }
+      });
 
 
       const trailHydrants = _
@@ -397,8 +402,9 @@ class ImportExport extends React.Component {
     const encodedUri = encodeURI(csvContent);
     downloadjs(encodedUri, 'Hydrants_Table.csv');
 
+
     // Download Trail CSV
-    const trailLineArray = ['data:text/csv;charset=utf-8,', trailCsvHeaders];
+    const trailLineArray = [`data:text/csv;charset=utf-8,${trailCsvHeaders}`];
     Object.keys(trailGeo).forEach((key) => {
       // quotes are to prevent csv parser from separating values into new columns
       trailLineArray.push([key, `"${JSON.stringify(trailGeo[key])}"`]);
